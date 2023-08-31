@@ -1,0 +1,74 @@
+from flask import Flask, render_template, jsonify, redirect, request
+import database
+from database import db
+import json, database, base64
+from random import choice
+from datetime import datetime
+import users
+import os, binascii
+
+app = Flask(__name__)
+my_database = database.db('root', 'localhost', 'djnisarga#sj1415', 'bankingpayments')
+print(my_database)
+logged_in = {}
+
+@app.route("/login", methods=['GET', 'POST'])
+def login():
+    error = ""
+    if request.method == 'POST':
+        user = users.user(request.form['username'], request.form['password'])
+        if user.authenticated:
+            user.session_id = str(binascii.b2a_hex(os.urandom(15)))
+            logged_in[user.username] = {"object": user}
+            return redirect('/profile/{}/{}'.format(request.form['username'], user.session_id))
+        else:
+            error = "invalid Username or Passowrd"
+
+    return render_template('Login.htm', error=error)
+
+@app.route('/', methods=['GET', 'POST'])
+def home():
+    return render_template('home.htm', title='HOME - Landing Page')
+
+
+@app.route('/profile/<string:username>/<string:session>', methods=['GET', 'POST'])
+def profile(username, session):
+    global logged_in
+
+    if username in logged_in and (logged_in[username]['object'].session_id == session):
+        user = {
+            "username": username,
+            "image": "/static/images/user.png",
+            "api": logged_in[username]["object"].api,
+            "session": session,
+            "firstname": logged_in[username]["object"].first,
+            "lastname": logged_in[username]["object"].last,
+            "email": logged_in[username]["object"].email,
+            "phone": logged_in[username]["object"].phone,
+            "lastlogin": logged_in[username]["object"].last_login,
+        }
+
+        devices = [
+            {"Dashboard": "device1",
+             "deviceID": "ARMS12012"
+             }
+        ]
+        return render_template('profile.htm', title='API-Settings', user=user, devices=devices)
+
+    else:
+        return redirect('/login')
+
+
+@app.route('/logout/<string:username>/<string:session>', methods=['GET', 'POST'])
+def logout(username, session):
+    global logged_in
+
+    if username in logged_in and (logged_in[username]['object'].session_id == session):
+        logged_in.pop(username)
+        # print("logged out")
+        return redirect('/')
+    else:
+        return redirect('/login')
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port="80", debug=True)
